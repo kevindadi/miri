@@ -86,6 +86,7 @@ mod intrinsics;
 mod machine;
 mod math;
 mod operator;
+pub mod petri;
 mod provenance_gc;
 mod shims;
 pub mod sym;

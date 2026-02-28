@@ -117,6 +117,9 @@ pub struct MiriConfig {
     pub short_fd_operations: bool,
     /// A list of crates that are considered user-relevant.
     pub user_relevant_crates: Vec<String>,
+    /// Petri net monitor configuration. When `Some`, protocol events are checked against the CPN.
+    #[cfg(feature = "petri")]
+    pub petri_config: Option<crate::petri::PetriConfig>,
 }
 
 impl Default for MiriConfig {
@@ -160,6 +163,8 @@ impl Default for MiriConfig {
             float_rounding_error: FloatRoundingErrorMode::Random,
             short_fd_operations: true,
             user_relevant_crates: vec![],
+            #[cfg(feature = "petri")]
+            petri_config: None,
         }
     }
 }

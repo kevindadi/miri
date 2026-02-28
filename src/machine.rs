@@ -657,6 +657,10 @@ pub struct MiriMachine<'tcx> {
 
     /// Whether Miri artificially introduces short reads/writes on file descriptors.
     pub short_fd_operations: bool,
+
+    /// Petri net monitor runtime. When `Some`, protocol events are checked against the CPN.
+    #[cfg(feature = "petri")]
+    pub petri_runtime: Option<crate::petri::PetriRuntime>,
 }
 
 impl<'tcx> MiriMachine<'tcx> {
@@ -819,6 +823,11 @@ impl<'tcx> MiriMachine<'tcx> {
             float_nondet: config.float_nondet,
             float_rounding_error: config.float_rounding_error,
             short_fd_operations: config.short_fd_operations,
+            #[cfg(feature = "petri")]
+            petri_runtime: config
+                .petri_config
+                .as_ref()
+                .and_then(|pc| crate::petri::PetriRuntime::load(pc.clone()).ok()),
         }
     }
 
@@ -1053,6 +1062,8 @@ impl VisitProvenance for MiriMachine<'_> {
             float_nondet: _,
             float_rounding_error: _,
             short_fd_operations: _,
+            #[cfg(feature = "petri")]
+            petri_runtime: _,
         } = self;
 
         threads.visit_provenance(visit);

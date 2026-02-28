@@ -708,6 +708,41 @@ fn main() -> ExitCode {
             miri_config.page_size = Some(page_size);
         } else if let Some(param) = arg.strip_prefix("-Zmiri-user-relevant-crates=") {
             miri_config.user_relevant_crates.extend(param.split(',').map(|s| s.to_owned()));
+        } else if let Some(param) = arg.strip_prefix("-Zmiri-petri=") {
+            #[cfg(feature = "petri")]
+            {
+                let path = std::path::PathBuf::from(param);
+                if path.exists() {
+                    let petri_config = miri::petri::PetriConfig::new(path);
+                    miri_config.petri_config = Some(petri_config);
+                } else {
+                    fatal_error!("-Zmiri-petri config file does not exist: {}", param);
+                }
+            }
+            #[cfg(not(feature = "petri"))]
+            {
+                fatal_error!("-Zmiri-petri requires the petri feature to be enabled");
+            }
+        } else if let Some(param) = arg.strip_prefix("-Zmiri-petri-log=") {
+            #[cfg(feature = "petri")]
+            if let Some(pc) = miri_config.petri_config.take() {
+                miri_config.petri_config = Some(pc.with_log_path(std::path::PathBuf::from(param)));
+            }
+        } else if arg == "-Zmiri-petri-fail-fast" {
+            #[cfg(feature = "petri")]
+            if let Some(pc) = miri_config.petri_config.take() {
+                miri_config.petri_config = Some(pc.with_fail_fast(true));
+            }
+        } else if arg == "-Zmiri-petri-no-fail-fast" {
+            #[cfg(feature = "petri")]
+            if let Some(pc) = miri_config.petri_config.take() {
+                miri_config.petri_config = Some(pc.with_fail_fast(false));
+            }
+        } else if arg == "-Zmiri-petri-print-marking-on-each-event" {
+            #[cfg(feature = "petri")]
+            if let Some(pc) = miri_config.petri_config.take() {
+                miri_config.petri_config = Some(pc.with_print_marking_on_each_event(true));
+            }
         } else {
             // Forward to rustc.
             rustc_args.push(arg);
