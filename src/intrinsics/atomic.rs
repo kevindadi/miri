@@ -3,6 +3,8 @@ use rustc_middle::ty::AtomicOrdering;
 use rustc_middle::{mir, ty};
 
 use super::check_intrinsic_arg_count;
+#[cfg(feature = "petri")]
+use crate::petri::hooks::PetriEvalContextExt;
 use crate::*;
 
 pub enum AtomicRmwOp {
@@ -211,6 +213,16 @@ trait EvalContextPrivExt<'tcx>: MiriInterpCxExt<'tcx> {
 
         // Perform atomic load.
         let val = this.read_scalar_atomic(&place, atomic)?;
+        // Petri monitor: emit AtomicLoad event.
+        #[cfg(feature = "petri")]
+        this.emit_petri_event(
+            crate::petri::PetriEvent::AtomicLoad {
+                tid: this.active_thread().to_u32(),
+                loc_id: place.ptr().addr().bytes(),
+                ordering: format!("{:?}", atomic),
+            },
+            None,
+        )?;
         // Perform regular store.
         this.write_scalar(val, dest)?;
         interp_ok(())
@@ -226,6 +238,16 @@ trait EvalContextPrivExt<'tcx>: MiriInterpCxExt<'tcx> {
         let val = this.read_scalar(val)?;
         // Perform atomic store.
         this.write_scalar_atomic(val, &place, atomic)?;
+        // Petri monitor: emit AtomicStore event.
+        #[cfg(feature = "petri")]
+        this.emit_petri_event(
+            crate::petri::PetriEvent::AtomicStore {
+                tid: this.active_thread().to_u32(),
+                loc_id: place.ptr().addr().bytes(),
+                ordering: format!("{:?}", atomic),
+            },
+            None,
+        )?;
         interp_ok(())
     }
 

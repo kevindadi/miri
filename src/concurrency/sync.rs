@@ -12,6 +12,8 @@ use rustc_abi::Size;
 use rustc_data_structures::fx::FxHashMap;
 
 use super::vector_clock::VClock;
+#[cfg(feature = "petri")]
+use crate::petri::hooks::PetriEvalContextExt;
 use crate::*;
 
 /// Indicates which kind of access is being performed.
@@ -424,6 +426,17 @@ pub trait EvalContextExt<'tcx>: crate::MiriInterpCxExt<'tcx> {
         }
         mutex.lock_count = mutex.lock_count.strict_add(1);
         this.acquire_clock(&mutex.clock)?;
+        #[cfg(feature = "petri")]
+        {
+            let lock_id = std::rc::Rc::as_ptr(&mutex_ref.0) as *const () as usize as u64;
+            this.emit_petri_event(
+                crate::petri::PetriEvent::LockAcquire {
+                    tid: thread.to_u32(),
+                    lock_id,
+                },
+                None,
+            )?;
+        }
         interp_ok(())
     }
 
@@ -439,6 +452,17 @@ pub trait EvalContextExt<'tcx>: crate::MiriInterpCxExt<'tcx> {
             if current_owner != this.machine.threads.active_thread() {
                 // Only the owner can unlock the mutex.
                 return interp_ok(None);
+            }
+            #[cfg(feature = "petri")]
+            {
+                let lock_id = std::rc::Rc::as_ptr(&mutex_ref.0) as *const () as usize as u64;
+                this.emit_petri_event(
+                    crate::petri::PetriEvent::LockRelease {
+                        tid: this.machine.threads.active_thread().to_u32(),
+                        lock_id,
+                    },
+                    None,
+                )?;
             }
             let old_lock_count = mutex.lock_count;
             mutex.lock_count = old_lock_count.strict_sub(1);

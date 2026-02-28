@@ -1,17 +1,24 @@
 //! Hooks for emitting Petri events from the interpreter.
 
 #[cfg(feature = "petri")]
-use crate::*;
+pub trait PetriEvalContextExt<'tcx>: crate::MiriInterpCxExt<'tcx> {
+    /// Emit a Petri event to the monitor. On violation, aborts if fail_fast else logs.
+    fn emit_petri_event(
+        &mut self,
+        event: crate::petri::PetriEvent,
+        span: Option<crate::petri::SpanLike>,
+    ) -> crate::InterpResult<'tcx>;
+}
 
 #[cfg(feature = "petri")]
-impl<'tcx> crate::MiriInterpCx<'tcx> {
-    /// Emit a Petri event to the monitor. On violation, aborts if fail_fast else logs.
-    pub fn emit_petri_event(
+impl<'tcx, T: crate::MiriInterpCxExt<'tcx>> PetriEvalContextExt<'tcx> for T {
+    fn emit_petri_event(
         &mut self,
         event: crate::petri::PetriEvent,
         span: Option<crate::petri::SpanLike>,
     ) -> crate::InterpResult<'tcx> {
-        let runtime = match self.machine.petri_runtime.as_mut() {
+        let this = self.eval_context_mut();
+        let runtime = match this.machine.petri_runtime.as_mut() {
             Some(r) => r,
             None => return crate::interp_ok(()),
         };

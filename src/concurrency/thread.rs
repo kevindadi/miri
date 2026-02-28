@@ -19,6 +19,8 @@ use rustc_target::spec::Os;
 
 use crate::concurrency::GlobalDataRaceHandler;
 use crate::shims::tls;
+#[cfg(feature = "petri")]
+use crate::petri::hooks::PetriEvalContextExt;
 use crate::*;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -902,6 +904,7 @@ pub trait EvalContextExt<'tcx>: crate::MiriInterpCxExt<'tcx> {
         let this = self.eval_context_mut();
 
         // Create the new thread
+        let parent_tid = this.machine.threads.active_thread();
         let current_span = this.machine.current_user_relevant_span();
         let new_thread_id = this.machine.threads.create_thread({
             let mut state = tls::TlsDtorsState::default();
@@ -919,6 +922,14 @@ pub trait EvalContextExt<'tcx>: crate::MiriInterpCxExt<'tcx> {
                     new_thread_id,
                 )?,
         }
+        #[cfg(feature = "petri")]
+        this.emit_petri_event(
+            crate::petri::PetriEvent::ThreadSpawn {
+                parent: parent_tid.to_u32(),
+                child: new_thread_id.to_u32(),
+            },
+            None,
+        )?;
         // Write the current thread-id, switch to the next thread later
         // to treat this write operation as occurring on the current thread.
         if let Some(thread_info_place) = thread {
@@ -1061,6 +1072,14 @@ pub trait EvalContextExt<'tcx>: crate::MiriInterpCxExt<'tcx> {
             };
             anchor.add_lossy(duration)
         });
+        #[cfg(feature = "petri")]
+        let _ = this.emit_petri_event(
+            crate::petri::PetriEvent::Block {
+                tid: this.machine.threads.active_thread().to_u32(),
+                reason: format!("{:?}", reason),
+            },
+            None,
+        );
         this.machine.threads.block_thread(reason, timeout, callback);
     }
 
@@ -1068,6 +1087,13 @@ pub trait EvalContextExt<'tcx>: crate::MiriInterpCxExt<'tcx> {
     /// Sanity-checks that the thread previously was blocked for the right reason.
     fn unblock_thread(&mut self, thread: ThreadId, reason: BlockReason) -> InterpResult<'tcx> {
         let this = self.eval_context_mut();
+        #[cfg(feature = "petri")]
+        this.emit_petri_event(
+            crate::petri::PetriEvent::Wake {
+                tid: thread.to_u32(),
+            },
+            None,
+        )?;
         let old_state =
             mem::replace(&mut this.machine.threads.threads[thread].state, ThreadState::Enabled);
         let callback = match old_state {

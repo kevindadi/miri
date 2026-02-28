@@ -1,6 +1,7 @@
 //! Main evaluator loop and setting up the initial stack frame.
 
 use std::ffi::{OsStr, OsString};
+use std::io::Write;
 use std::num::NonZeroI32;
 use std::panic::{self, AssertUnwindSafe};
 use std::path::PathBuf;
@@ -468,6 +469,7 @@ pub fn eval_entry<'tcx>(
 ) -> Result<(), NonZeroI32> {
     // Copy setting before we move `config`.
     let ignore_leaks = config.ignore_leaks;
+    let is_genmc = genmc_ctx.is_some();
 
     let mut ecx = match create_ecx(tcx, entry_id, entry_type, config, genmc_ctx).report_err() {
         Ok(v) => v,
@@ -520,6 +522,22 @@ pub fn eval_entry<'tcx>(
 
         // The interpreter has not reported an error.
         // (There could still be errors in the session if there are other interpreters.)
+        // Petri monitor: record execution end for GenMC marking coverage.
+        #[cfg(feature = "petri")]
+        if is_genmc {
+            if let Some(ref mut runtime) = ecx.machine.petri_runtime {
+                let (hash, _is_new) = runtime.record_execution_end();
+                if let Some(log_path) = &runtime.config().log_path {
+                    if let Ok(mut f) = std::fs::OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open(log_path)
+                    {
+                        let _ = writeln!(f, "{{\"exec_end\": true, \"marking_hash\": {}}}", hash);
+                    }
+                }
+            }
+        }
         return match NonZeroI32::new(return_code) {
             None => Ok(()),
             Some(return_code) => Err(return_code),

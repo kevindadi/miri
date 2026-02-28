@@ -14,6 +14,7 @@ use super::event::PetriEvent;
 #[derive(Debug, serde::Deserialize)]
 struct PetriNetDef {
     #[serde(default)]
+    #[allow(dead_code)]
     places: Vec<String>,
     transitions: FxHashMap<String, TransitionDef>,
     #[serde(default)]
@@ -178,6 +179,17 @@ impl PetriRuntime {
         };
 
         let binding = self.make_binding(&e);
+
+        // Lazy init: for LockAcquire, ensure the lock token exists in "free" if this is acquire.
+        if transition_id == "acquire" {
+            if let Some(&Token::Lock(lock_id)) = binding.get("L") {
+                let marking = self.engine.marking_mut();
+                let free = marking.get("free");
+                if free.map_or(true, |m| !m.contains(&Token::Lock(lock_id), 1)) {
+                    marking.get_or_insert("free").add(Token::Lock(lock_id), 1);
+                }
+            }
+        }
         let result = self.engine.fire(&transition_id, &binding);
 
         if let Err(ref not_enabled) = result {
@@ -269,5 +281,9 @@ impl PetriRuntime {
 
     pub fn fail_fast(&self) -> bool {
         self.config.fail_fast
+    }
+
+    pub fn config(&self) -> &PetriConfig {
+        &self.config
     }
 }

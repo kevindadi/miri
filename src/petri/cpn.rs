@@ -262,6 +262,10 @@ impl CpnEngine {
         &self.marking
     }
 
+    pub fn marking_mut(&mut self) -> &mut Marking {
+        &mut self.marking
+    }
+
     pub fn marking_hash(&self) -> u64 {
         self.marking.hash()
     }

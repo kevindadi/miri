@@ -1,0 +1,20 @@
+{
+  "places": ["free", "held"],
+  "transitions": {
+    "acquire": {
+      "pre": [{"place": "free", "variable": "L"}],
+      "post": [{"place": "held", "variable": "L"}]
+    },
+    "release": {
+      "pre": [{"place": "held", "variable": "L"}],
+      "post": [{"place": "free", "variable": "L"}]
+    }
+  },
+  "event_mapping": {
+    "LockAcquire": "acquire",
+    "LockRelease": "release"
+  },
+  "initial_marking": {
+    "free": [["Lock", 0]]
+  }
+}

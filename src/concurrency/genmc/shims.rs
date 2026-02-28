@@ -4,6 +4,8 @@ use tracing::debug;
 
 use crate::concurrency::genmc::MAX_ACCESS_SIZE;
 use crate::concurrency::thread::EvalContextExt as _;
+#[cfg(feature = "petri")]
+use crate::petri::hooks::PetriEvalContextExt;
 use crate::*;
 
 impl GenmcCtx {
@@ -110,6 +112,14 @@ trait EvalContextExtPriv<'tcx>: crate::MiriInterpCxExt<'tcx> {
             );
         } else if result.is_lock_acquired {
             debug!("GenMC: Mutex::lock successfully acquired the Mutex.");
+            #[cfg(feature = "petri")]
+            this.emit_petri_event(
+                crate::petri::PetriEvent::LockAcquire {
+                    tid: this.machine.threads.active_thread().to_u32(),
+                    lock_id: mutex.ptr().addr().bytes(),
+                },
+                None,
+            )?;
         } else {
             debug!("GenMC: Mutex::lock failed to acquire the Mutex, permanently blocking thread.");
             // NOTE: `handle_mutex_lock` already blocked the current thread on the GenMC side.
@@ -163,9 +173,9 @@ trait EvalContextExtPriv<'tcx>: crate::MiriInterpCxExt<'tcx> {
         interp_ok(())
     }
 
-    fn intercept_mutex_unlock(&self, mutex: MPlaceTy<'tcx>) -> InterpResult<'tcx> {
+    fn intercept_mutex_unlock(&mut self, mutex: MPlaceTy<'tcx>) -> InterpResult<'tcx> {
         debug!("GenMC: handling Mutex::unlock()");
-        let this = self.eval_context_ref();
+        let this = self.eval_context_mut();
         let genmc_ctx = this.machine.data_race.as_genmc_ref().unwrap();
         let result = genmc_ctx.handle.borrow_mut().pin_mut().handle_mutex_unlock(
             genmc_ctx.active_thread_genmc_tid(&this.machine),
@@ -176,7 +186,15 @@ trait EvalContextExtPriv<'tcx>: crate::MiriInterpCxExt<'tcx> {
             // FIXME(genmc): improve error handling.
             throw_ub_format!("{}", error.to_string_lossy());
         }
-        // NOTE: We don't write anything back to Miri's memory where the Mutex is located, that state is handled only by GenMC.}
+        #[cfg(feature = "petri")]
+        this.emit_petri_event(
+            crate::petri::PetriEvent::LockRelease {
+                tid: this.machine.threads.active_thread().to_u32(),
+                lock_id: mutex.ptr().addr().bytes(),
+            },
+            None,
+        )?;
+        // NOTE: We don't write anything back to Miri's memory where the Mutex is located, that state is handled only by GenMC.
         interp_ok(())
     }
 }
