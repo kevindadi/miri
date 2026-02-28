@@ -18,10 +18,13 @@ impl<'tcx, T: crate::MiriInterpCxExt<'tcx>> PetriEvalContextExt<'tcx> for T {
         span: Option<crate::petri::SpanLike>,
     ) -> crate::InterpResult<'tcx> {
         let this = self.eval_context_mut();
-        let runtime = match this.machine.petri_runtime.as_mut() {
-            Some(r) => r,
-            None => return crate::interp_ok(()),
+        let Some(runtime) = this.machine.petri_runtime.as_mut() else {
+            return crate::interp_ok(());
         };
+        // let runtime = match this.machine.petri_runtime.as_mut() {
+        //     Some(r) => r,
+        //     None => return crate::interp_ok(()),
+        // };
         match runtime.on_event(event, span) {
             Ok(()) => crate::interp_ok(()),
             Err(v) => {

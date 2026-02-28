@@ -8,10 +8,34 @@ The Petri monitor observes protocol-layer events during Miri execution (lock/unl
 
 ## Usage
 
+### Running with Custom-Built Miri (no rustup/cargo-miri)
+
+If you build miri from source (e.g. `cargo build` in this repo or via the rust tree), use **`cargo test`** instead of `cargo miri test`. The ui test harness invokes your built miri binary directly.
+
+1. **Build miri**: `cargo build`
+2. **Set MIRI_SYSROOT** to a rust sysroot. Options:
+   - Nightly: `export MIRI_SYSROOT=$(rustup run nightly rustc --print sysroot)`
+   - Custom toolchain (e.g. `miri`): `export MIRI_SYSROOT=$(rustup run miri rustc --print sysroot)`
+   - Or a path like `~/.rustup/toolchains/nightly-<host>/`
+3. **Run the petri test**:
+   ```bash
+   MIRIFLAGS="-Zmiri-petri=petri_config.json" cargo test tests/petri/mutex_violation
+   ```
+
+### Running with rustup-installed Miri
+
+If you use `rustup component add miri`, run:
+
+```bash
+MIRIFLAGS="-Zmiri-petri=petri_config.json" cargo +nightly miri test tests/petri/mutex_violation
+```
+
 ### Enabling the Monitor
 
 ```bash
-MIRIFLAGS="-Zmiri-petri=path/to/petri_config.json" cargo miri test
+MIRIFLAGS="-Zmiri-petri=path/to/petri_config.json" cargo test <test_name>
+# or with cargo miri:
+MIRIFLAGS="-Zmiri-petri=path/to/petri_config.json" cargo +nightly miri test <test_name>
 ```
 
 Or with additional options:
@@ -83,9 +107,24 @@ A minimal `petri_config.json` for a Mutex model:
 
 ## Example: Running the Test
 
+**Custom-built miri** (this repo):
 ```bash
 cd /path/to/miri
-MIRIFLAGS="-Zmiri-petri=tests/petri/petri_config.json" cargo miri test tests/petri/mutex_violation
+cargo build
+export MIRI_SYSROOT=$(rustup run nightly rustc --print sysroot)   # or your rust sysroot path
+MIRIFLAGS="-Zmiri-petri=petri_config.json" cargo test tests/petri/mutex_violation
+```
+
+**rustup miri**:
+```bash
+MIRIFLAGS="-Zmiri-petri=petri_config.json" cargo +nightly miri test tests/petri/mutex_violation
+```
+
+**Miri as rust submodule**: use `./x.py test src/tools/miri` from the rust tree.
+
+**Lib-only** (no interpreter, just petri unit tests):
+```bash
+cargo test --lib petri
 ```
 
 ## Implementation Notes
