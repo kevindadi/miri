@@ -15,3 +15,4 @@ tests/native-lib/libtestlib.so
 .auto-*
 
 /genmc/
+.cursor
